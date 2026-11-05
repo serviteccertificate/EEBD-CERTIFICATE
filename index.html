@@ -272,6 +272,7 @@
 
 <div class="cloudbar no-print">
   <button class="btn green" onclick="saveCloud()">☁️ บันทึก / อัปเดต</button>
+  <button class="btn" style="background:#06C755" onclick="sendLine()">📲 ส่ง LINE เข้ากลุ่ม</button>
   <button class="btn" onclick="listCloud()">📋 รายการทั้งหมด</button>
   <button class="btn grey" onclick="newCert()">➕ ใบรับรองใหม่</button>
   <button class="btn grey" onclick="toggleCloudCfg()">⚙️ ตั้งค่า</button>
@@ -827,6 +828,36 @@
     var a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
     setTimeout(function(){URL.revokeObjectURL(url);},1500);
   }
+  /* ---- ส่ง LINE เข้ากลุ่ม (หลักการเดียวกับ cert FFE) ---- */
+  /* เปิดหน้าต่างแชร์ของ LINE พร้อมข้อความสรุปใบรับรอง ผู้ใช้เลือกกลุ่ม/แชทปลายทางเองแล้วกดส่ง
+     ไม่ต้องตั้งค่า Token หรือ Group ID ใด ๆ ทำงานได้ทันทีทั้งบนมือถือ/iPad (เปิดแอป LINE) และคอมพิวเตอร์ (เปิด LINE เว็บ) */
+  function sendLine(){
+    function v(id){var el=document.getElementById(id);return el?(el.value||'').trim():'';}
+    var vessel=v('f_vessel')||'-';
+    var certno=v('f_certno')||'-';
+    var imo=v('f_imo');
+    var d=v('f_date'),m=v('f_month'),y=v('f_year');
+    var dateStr=[d,m,y].filter(Boolean).join('/')||'-';
+    var place=v('f_place');
+    var hoods=sectionRows('A').length;
+    var cyls=sectionRows('B').length;
+
+    var msg='📋 CERTIFICATE OF EMERGENCY ESCAPE BREATHING DEVICE (EEBD)\n'
+      +'🏢 Marine Servitec Co., Ltd. — FR-SE-11\n'
+      +'──────────────────────\n'
+      +'🚢 เรือ: '+vessel+'\n'
+      +(imo?('🆔 IMO: '+imo+'\n'):'')
+      +'📄 เลขที่ใบรับรอง: '+certno+'\n'
+      +'📅 วันที่: '+dateStr+'\n'
+      +(place?('📍 สถานที่: '+place+'\n'):'')
+      +'🎭 ชุด Hood (A): '+hoods+' รายการ\n'
+      +'🫧 ถังอากาศ (B): '+cyls+' รายการ\n'
+      +'──────────────────────\n'
+      +'ส่งจากระบบ EEBD Certificate Generator';
+
+    window.open('https://line.me/R/msg/text/?'+encodeURIComponent(msg),'_blank');
+  }
+
   function importData(ev){
     var file=ev.target.files[0];if(!file)return;
     var rd=new FileReader();
