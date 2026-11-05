@@ -855,7 +855,18 @@
       +'──────────────────────\n'
       +'ส่งจากระบบ EEBD Certificate Generator';
 
-    window.open('https://line.me/R/msg/text/?'+encodeURIComponent(msg),'_blank');
+    var url='https://line.me/R/msg/text/?'+encodeURIComponent(msg);
+    var ua=navigator.userAgent||'';
+    var isMobile=/Android|iPhone|iPad|iPod|Mobile/i.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1); // iPadOS แสดงตัวเป็น Mac
+    if(isMobile){
+      // iPad (Safari/Chrome) และ Samsung (Samsung Internet/Chrome): เปิดในแท็บเดิม → ระบบส่งต่อเข้าแอป LINE โดยตรง ไม่โดนบล็อกป๊อปอัป
+      try{saveStore();}catch(e){}                 // บันทึกฟอร์มก่อนออกจากหน้า กลับมาข้อมูลยังอยู่ครบ
+      setTimeout(function(){location.href=url;},150);
+    }else{
+      // คอมพิวเตอร์: เปิดแท็บใหม่ (LINE เว็บ / LINE PC)
+      var w=window.open(url,'_blank');
+      if(!w)location.href=url;
+    }
   }
 
   function importData(ev){
