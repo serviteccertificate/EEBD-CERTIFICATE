@@ -113,9 +113,9 @@
   #cMenu .nores:hover{background:#fff;}
   /* pen-writing mode: enlarge cells on screen for Apple Pencil (does NOT affect print) */
   @media screen{
-    body.penmode .rowsbody td{height:auto;}
-    body.penmode .rowsbody td input{font-size:16px;padding:9px 5px;min-height:38px;text-align:left;}
-    body.penmode .rowsbody td.no{font-size:14px;}
+    body.penmode:not(.measuring) .rowsbody td{height:auto;}
+    body.penmode:not(.measuring) .rowsbody td input{font-size:16px;padding:9px 5px;min-height:38px;text-align:left;}
+    body.penmode:not(.measuring) .rowsbody td.no{font-size:14px;}
   }
   .rowdel{cursor:pointer;color:#dc2626;font-weight:bold;border:0;background:transparent;font-size:13px;line-height:1;}
   .rowtools{display:flex;gap:6px;margin:6px 0;flex-wrap:wrap;}
@@ -211,6 +211,28 @@
   .footrow{display:flex;justify-content:space-between;align-items:flex-end;margin-top:6px;}
   .footrow .formcode{margin:0;text-align:left;}
 
+  /* ---------- MEASURE MODE: จำลองขนาดตอนพิมพ์ชั่วคราว เพื่อวัดความสูงจริงก่อนจัดหน้า (ไม่แสดงบนจอ) ---------- */
+  body.measuring .sheet{width:196mm!important;min-height:0!important;margin:0!important;padding:0!important;zoom:1!important;}
+  body.measuring .title{font-size:20px;}
+  body.measuring .center-logo img{height:30px;}
+  body.measuring .class-logos{height:34px;}
+  body.measuring #sheet input,body.measuring #sheet select,body.measuring #sheet textarea{border:0!important;}
+  body.measuring:not(.compact):not(.ultra) .rowsbody td input,body.measuring:not(.compact):not(.ultra) .rowsbody td select{font-size:9px;}
+  body.measuring .delcol,body.measuring .rowsbody td.delcell,body.measuring .pageno{display:none!important;}
+  body.measuring tr.pgmark{display:table-row;}
+  body.measuring .sign .role select.rolesel{border-bottom:0;padding:0;}
+  /* เมื่อทุกอย่างอยู่หน้าเดียวและมีที่เหลือ → ขยายความสูงแถวให้เต็มหน้าอย่างสมดุล */
+  @media screen{body.previewmode.stretch .rowsbody tr.grow td{height:var(--prow)!important;}}
+
+  body.measuring.tight .rowsbody td input,body.measuring.tight .rowsbody td select{padding-top:0;padding-bottom:0;line-height:1.05;}
+  body.measuring.tight .info td{height:20px;}
+  body.measuring.tight .legend td{padding-top:0;padding-bottom:0;}
+  @media screen{
+    body.previewmode.tight .rowsbody td input,body.previewmode.tight .rowsbody td select{padding-top:0;padding-bottom:0;line-height:1.05;}
+    body.previewmode.tight .info td{height:20px;}
+    body.previewmode.tight .legend td{padding-top:0;padding-bottom:0;}
+  }
+
   /* ---------- PRINT ---------- */
   @media print{
     @page{size:A4 portrait;margin:7mm;}
@@ -231,6 +253,10 @@
     .rowsbody tr.xhdr{display:table-row;}
     tr.pgmark{display:table-row;}
     tr{break-inside:avoid;}
+    body.tight .rowsbody td input,body.tight .rowsbody td select{padding-top:0;padding-bottom:0;line-height:1.05;}
+    body.tight .info td{height:20px;}
+    body.tight .legend td{padding-top:0;padding-bottom:0;}
+    body.stretch .rowsbody tr.grow td{height:var(--prow)!important;}
     .sign,.statement,.seccell{break-inside:avoid;}
   }
 </style>
@@ -266,6 +292,9 @@
     · หน้าถัดไปทุก
     <input id="f_break2" type="number" min="1" value="34" oninput="applyBreaks();scheduleSave();">
   </span>
+  <label title="ถ้าส่วนเซ็นชื่อยังหลุดไปอยู่หน้า 2 เดี่ยว ๆ ให้เพิ่มค่านี้">📏 เผื่อท้ายหน้า
+    <input id="opt_safe" type="number" min="0" max="80" step="1" value="15" oninput="applyBreaks();scheduleSave();"> มม.
+  </label>
   <label><input id="opt_pen" type="checkbox" onchange="setPen(this.checked);scheduleSave();"> ✏️ โหมดเขียน (ขยายช่องสำหรับปากกา)</label>
   <span class="optnote">เส้นประน้ำเงิน = จุดตัดหน้า · รายการนับรวม A+B ตามลำดับ</span>
 </div>
@@ -670,6 +699,55 @@
   };
   function density(){return document.body.classList.contains('ultra')?'ultra':(document.body.classList.contains('compact')?'compact':'normal');}
 
+  /* ---- จัดหน้าแบบวัดความสูงจริง (แม่นกว่าการนับจำนวนแถว) ---- */
+  var MMPX=96/25.4;
+  function hOf(el){return el?el.getBoundingClientRect().height:0;}
+  function measureLayout(){
+    var b=document.body,tb=document.getElementById('topblock');
+    var tmp=document.createElement('tr');tmp.className='pgmark';tmp.innerHTML='<td colspan="11">PAGE 1 OF 2</td>';
+    b.classList.add('measuring');tb.insertBefore(tmp,tb.firstElementChild);
+    var m={};
+    try{
+      m.pg=hOf(tmp);tmp.remove();
+      m.H=hOf(document.querySelector('#sheet .doc > thead'));
+      m.F=hOf(document.querySelector('#sheet .doc > tfoot'));
+      m.T=hOf(tb);
+      m.E=hOf(document.getElementById('endblock'));
+      m.rows=combined().map(function(o){return {sec:o.sec,h:hOf(o.tr)};});
+      m.hdr={};
+      ['A','B'].forEach(function(s){
+        var sum=0;m.rows.forEach(function(r){if(r.sec===s)sum+=r.h;});
+        m.hdr[s]=Math.max(0,hOf(document.getElementById('sec'+s))-sum);
+      });
+    }finally{if(tmp.parentNode)tmp.remove();b.classList.remove('measuring');}
+    return m;
+  }
+  function smartBreaks(m){
+    var safe=parseFloat((document.getElementById('opt_safe')||{}).value);if(!(safe>=0))safe=15;
+    var n=m.rows.length,usable=283*MMPX-m.H-m.F-safe*MMPX;   // A4 297mm − ขอบ 7mm×2 − ระยะเผื่อท้ายหน้า
+    var cntA=m.rows.filter(function(r){return r.sec==='A';}).length,cntB=n-cntA;
+    var base1=m.T+(cntA?0:m.hdr.A), endCost=m.E+(cntB?0:m.hdr.B);
+    function cost(j,pageStart){
+      var r=m.rows[j],c=r.h;
+      if(j===0||m.rows[j-1].sec!==r.sec||pageStart)c+=m.hdr[r.sec];
+      return c;
+    }
+    var single=base1+endCost;for(var j=0;j<n;j++)single+=cost(j,false);
+    if(single<=usable)return {breaks:[],pages:[{from:0,to:n,spare:usable-single}],spare:usable-single,over:0};
+    var breaks=[],pages=[],i=0,first=true;
+    while(i<n&&breaks.length<200){
+      var used=(first?base1:0)+m.pg,k=0,c;
+      while(i+k<n){c=cost(i+k,k===0&&!first);if(used+c>usable)break;used+=c;k++;}
+      if(i+k===n&&used+endCost<=usable)break;       // ที่เหลือทั้งหมด + ส่วนเซ็น อยู่หน้านี้ได้
+      var rem=n-i;                                  // เติมหน้านี้ให้เต็มที่สุด เหลือไปหน้าถัดไปอย่างน้อย 1 แถวคู่กับส่วนเซ็น
+      var take=Math.max(1,Math.min(k,rem-1));
+      var pu=(first?base1:0)+m.pg;for(var q=i;q<i+take;q++)pu+=cost(q,q===i&&!first);
+      pages.push({from:i,to:i+take,spare:usable-pu});
+      breaks.push(i+take);i+=take;first=false;
+    }
+    return {breaks:breaks,pages:pages,spare:0,over:single-usable};
+  }
+
   function computeBreaks(total){
     var c=CAP[density()];
     var breaks=[],placed=0,first=true;
@@ -701,10 +779,41 @@
     var list=combined();
     list.forEach(function(o){o.tr.classList.remove('pbreak');});
     var total=list.length;
+    document.body.classList.remove('stretch');
+    document.querySelectorAll('.rowsbody tr.grow').forEach(function(t){t.classList.remove('grow');t.style.removeProperty('--prow');});
+    document.body.classList.remove('tight');
+    var auto=document.getElementById('opt_auto').checked,smart=null,mres=null;
+    if(auto&&total>0){
+      document.body.classList.remove('tight');
+      try{
+        mres=measureLayout();
+        if(mres.H>0&&mres.T>0){
+          smart=smartBreaks(mres);
+          // เกินหน้าเดียวไม่มาก → บีบแถวให้เตี้ยลงเล็กน้อย เพื่อให้จบในหน้าเดียว
+          if(smart.breaks.length&&smart.over<=12*MMPX){
+            document.body.classList.add('tight');
+            var m2=measureLayout(),s2=smartBreaks(m2);
+            if(!s2.breaks.length){mres=m2;smart=s2;}else document.body.classList.remove('tight');
+          }
+        }
+      }catch(e){smart=null;document.body.classList.remove('tight');}
+      if(smart){
+        // เติมพื้นที่ว่างของแต่ละหน้า (ยกเว้นหน้าสุดท้ายที่มีหลายหน้า) ด้วยการขยายความสูงแถวให้เต็มหน้า
+        var lst=combined(),multi=smart.breaks.length>0,any=false;
+        smart.pages.forEach(function(pgx){
+          var cnt=pgx.to-pgx.from;if(cnt<1||pgx.spare<=1)return;
+          var maxH=0;for(var q=pgx.from;q<pgx.to;q++)if(mres.rows[q].h>maxH)maxH=mres.rows[q].h;
+          var extra=Math.min((pgx.spare-2)/cnt,(multi?9:7.5)*MMPX-maxH);
+          if(extra<=0.5)return;any=true;
+          for(var q2=pgx.from;q2<pgx.to;q2++){lst[q2].tr.classList.add('grow');lst[q2].tr.style.setProperty('--prow',(maxH+extra).toFixed(2)+'px');}
+        });
+        if(any)document.body.classList.add('stretch');
+      }
+    }
     if(total<2)return;
     var firstB=sectionRows('A').length;            // combined index where section B begins
-    var pos={},auto=document.getElementById('opt_auto').checked;
-    if(auto){computeBreaks(total).forEach(function(b){if(b<total)pos[b]=1;});}
+    var pos={};
+    if(auto){(smart?smart.breaks:computeBreaks(total)).forEach(function(b){if(b<total)pos[b]=1;});}
     else{
       var n1=parseInt(document.getElementById('f_break').value,10)||0;
       var n2=parseInt(document.getElementById('f_break2').value,10)||0;
@@ -792,6 +901,7 @@
     d.opt.density=document.getElementById('opt_density').value;
     d.opt.auto=document.getElementById('opt_auto').checked;
     d.opt.pen=document.getElementById('opt_pen').checked;
+    d.opt.safe=document.getElementById('opt_safe').value;
     ['A','B'].forEach(function(sec){
       sectionRows(sec).forEach(function(tr){
         var row={};
@@ -809,6 +919,7 @@
     var ds=document.getElementById('opt_density');if(ds)ds.value=dens;setDensity(dens);
     var auto=!(d.opt&&d.opt.auto===false);
     var ab=document.getElementById('opt_auto');if(ab)ab.checked=auto;syncManual();
+    var sf=document.getElementById('opt_safe');if(sf&&d.opt&&d.opt.safe!=null&&d.opt.safe!=='')sf.value=d.opt.safe;
     var pen=!!(d.opt&&d.opt.pen);var pb=document.getElementById('opt_pen');if(pb)pb.checked=pen;setPen(pen);
     var bodyA=document.getElementById('rowsA');bodyA.innerHTML='';
     (d.rowsA&&d.rowsA.length?d.rowsA:[{},{},{},{},{},{}]).forEach(function(r){bodyA.appendChild(makeRow('A',r));});
@@ -1111,7 +1222,8 @@
     if(!loaded){setYearDefaults();addRow('A',6);addRow('B',6);}
     fitSheet();
     window.addEventListener('resize',function(){clearTimeout(window.__fitT);window.__fitT=setTimeout(fitSheet,120);});
-    window.addEventListener('beforeprint',function(){var s=document.getElementById('sheet');if(s)s.style.zoom='';});
+    window.addEventListener('beforeprint',function(){var s=document.getElementById('sheet');if(s)s.style.zoom='';applyBreaks();});
+    window.addEventListener('load',applyBreaks);
     window.addEventListener('afterprint',fitSheet);
     try{
       var qs=new URLSearchParams(location.search);
